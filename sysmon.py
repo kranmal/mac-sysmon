@@ -2,8 +2,8 @@
 """Mac Sysmon: transparent desktop system monitor overlay for macOS (Apple Silicon).
 
 A port of linux-sysmon. Shows CPU (per core, E/P clusters), RAM, GPU, battery/power,
-temperatures, storage, Wi-Fi/Ethernet and, optionally, a start/stop toggle for a
-launchd user agent (e.g. a local LLM server). No sudo needed.
+temperatures, storage, Wi-Fi/Ethernet and, optionally, a start/stop toggle for an
+app or launchd user agent (e.g. a local LLM server such as Ollama). No sudo needed.
 
 Drag with left mouse. Right-click for menu (opacity, float on top, click-through, quit).
 Run `sysmon.py --help` for options.
@@ -34,6 +34,8 @@ W = 300
 FONT = "Menlo"
 # Optional service toggle (launchd *user* agent label). Empty = section hidden.
 SVC_LABEL = os.environ.get("SYSMON_SERVICE_LABEL", "")
+# ...or a macOS app (e.g. "Ollama"), started with `open` and stopped by quitting it.
+SVC_APP = os.environ.get("SYSMON_SERVICE_APP", "")
 SVC_URL = os.environ.get("SYSMON_SERVICE_HEALTH_URL", "")     # optional HTTP health check
 SVC_PROC = os.environ.get("SYSMON_SERVICE_PROCESS", "")       # optional process name for RAM
 SVC_TITLE = os.environ.get("SYSMON_SERVICE_TITLE", "SERVICE")
@@ -229,7 +231,7 @@ class Monitor(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowTitle("sysmon")
         self.demo = DEMO
-        self.svc_enabled = bool(SVC_LABEL)
+        self.svc_enabled = bool(SVC_LABEL or SVC_APP)
         self.cfg = {}
         if not self.demo:
             try:
@@ -338,13 +340,25 @@ class Monitor(QWidget):
     def svc_target(self):
         return f"gui/{os.getuid()}/{SVC_LABEL}"
 
+    @staticmethod
+    def app_procs():
+        """Processes belonging to the app: "Ollama" also matches its `ollama` helpers."""
+        want = SVC_APP.lower()
+        return [pr for pr in psutil.process_iter(["name", "memory_info"])
+                if (pr.info["name"] or "").lower() == want]
+
     def svc_poll(self):
         while True:
             try:
-                r = subprocess.run(["launchctl", "print", self.svc_target()],
-                                   capture_output=True, text=True, timeout=3)
-                m = re.search(r"^\s*state = (.+)$", r.stdout, re.M)
-                st = m.group(1).strip() if (r.returncode == 0 and m) else "off"
+                procs = []
+                if SVC_APP:
+                    procs = self.app_procs()
+                    st = "running" if procs else "off"
+                else:
+                    r = subprocess.run(["launchctl", "print", self.svc_target()],
+                                       capture_output=True, text=True, timeout=3)
+                    m = re.search(r"^\s*state = (.+)$", r.stdout, re.M)
+                    st = m.group(1).strip() if (r.returncode == 0 and m) else "off"
                 if st == "running":
                     state = "running"
                     if SVC_URL:
@@ -358,8 +372,11 @@ class Monitor(QWidget):
                 else:
                     state = "off"
                 ram = 0.0
-                for pr in (psutil.process_iter(["name", "memory_info"]) if SVC_PROC else []):
-                    if pr.info["name"] == SVC_PROC and pr.info["memory_info"]:
+                if SVC_PROC:
+                    procs = [pr for pr in psutil.process_iter(["name", "memory_info"])
+                             if pr.info["name"] == SVC_PROC]
+                for pr in procs:
+                    if pr.info["memory_info"]:
                         ram += pr.info["memory_info"].rss / 2**30
                 if time.time() > self.svc_busy_until:
                     self.svc_state = state
@@ -370,9 +387,17 @@ class Monitor(QWidget):
 
     def svc_toggle(self):
         on = self.svc_state in ("running", "loading")
-        cmd = (["launchctl", "kill", "SIGTERM", self.svc_target()] if on
-               else ["launchctl", "kickstart", self.svc_target()])
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if SVC_APP and on:
+            for pr in self.app_procs():          # same as quitting the app
+                try:
+                    pr.terminate()
+                except psutil.Error:
+                    pass
+        else:
+            cmd = (["open", "-g", "-j", "-a", SVC_APP] if SVC_APP
+                   else ["launchctl", "kill", "SIGTERM", self.svc_target()] if on
+                   else ["launchctl", "kickstart", self.svc_target()])
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.svc_state = "stopping" if on else "loading"
         self.svc_busy_until = time.time() + 3
         self.update()
@@ -814,12 +839,14 @@ class Monitor(QWidget):
 
 
 def main():
-    global SVC_LABEL, SVC_URL, SVC_PROC, SVC_TITLE, DEMO
+    global SVC_LABEL, SVC_APP, SVC_URL, SVC_PROC, SVC_TITLE, DEMO
     if sys.platform != "darwin":
         sys.exit("Mac Sysmon only runs on macOS. For Linux see kranmal/linux-sysmon.")
     ap = argparse.ArgumentParser(description="Transparent desktop system monitor (macOS).")
     ap.add_argument("--service-label", default=SVC_LABEL, metavar="LABEL",
                     help="launchd USER agent label to show with a start/stop button")
+    ap.add_argument("--service-app", default=SVC_APP, metavar="APP",
+                    help='macOS app to start/stop instead of a launchd agent (e.g. "Ollama")')
     ap.add_argument("--service-title", default=SVC_TITLE, help="section title (default SERVICE)")
     ap.add_argument("--service-health-url", default=SVC_URL, metavar="URL",
                     help="optional HTTP URL; 200 means RUNNING, otherwise LOADING")
@@ -827,7 +854,7 @@ def main():
                     help="optional process name, to show its RAM use")
     ap.add_argument("--demo", action="store_true", help="show fake data (screenshots, testing)")
     args, qt_args = ap.parse_known_args()
-    SVC_LABEL, SVC_TITLE = args.service_label, args.service_title
+    SVC_LABEL, SVC_APP, SVC_TITLE = args.service_label, args.service_app, args.service_title
     SVC_URL, SVC_PROC, DEMO = args.service_health_url, args.service_process, args.demo
     app = QApplication([sys.argv[0]] + qt_args)
     app.setApplicationName("sysmon")

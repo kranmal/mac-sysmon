@@ -50,6 +50,17 @@ check("renders (demo, no service)", not img.isNull() and w.width() == m.W)
 check("demo disks listed", len(w.disks) == 2)
 check("demo never touches saved config", w.cfg == {})
 
+# start position: docked right by default, left on request, saved spot with "remember"
+scr = app.primaryScreen().availableGeometry()
+w.cfg = {"x": scr.left() + 50, "y": scr.top() + 120}
+check("opens on the right edge", w.start_pos().x() == scr.right() + 1 - m.W - m.EDGE
+      and w.start_pos().y() == scr.top() + 120, str(w.start_pos()))
+m.POSITION = "left"
+check("opens on the left edge", w.start_pos().x() == scr.left() + m.EDGE)
+m.POSITION = "remember"
+check("remembers position", (w.start_pos().x(), w.start_pos().y()) == (scr.left() + 50, scr.top() + 120))
+m.POSITION, w.cfg = "right", {}
+
 # demo mode, service section on
 m.SVC_LABEL, m.SVC_TITLE = "com.example.demo", "LOCAL LLM"
 w2 = m.Monitor()

@@ -39,6 +39,8 @@ SVC_APP = os.environ.get("SYSMON_SERVICE_APP", "")
 SVC_URL = os.environ.get("SYSMON_SERVICE_HEALTH_URL", "")     # optional HTTP health check
 SVC_PROC = os.environ.get("SYSMON_SERVICE_PROCESS", "")       # optional process name for RAM
 SVC_TITLE = os.environ.get("SYSMON_SERVICE_TITLE", "SERVICE")
+POSITION = os.environ.get("SYSMON_POSITION", "right")   # right | left | remember
+EDGE = 10        # gap to the screen edge when docked
 DEMO = False     # --demo: fake data (for screenshots and tests)
 CONFIG = os.path.expanduser("~/Library/Application Support/mac-sysmon/config.json")
 
@@ -312,14 +314,24 @@ class Monitor(QWidget):
         super().showEvent(e)
         if not getattr(self, "_placed", False):
             self._placed = True
-            scr = QGuiApplication.primaryScreen().availableGeometry()
-            pos = QPoint(scr.right() - W - 20, scr.top() + 20)
-            if "x" in self.cfg and "y" in self.cfg:
-                saved = QPoint(int(self.cfg["x"]), int(self.cfg["y"]))
-                if any(s.geometry().contains(saved) for s in QGuiApplication.screens()):
-                    pos = saved
-            self.move(pos)
+            self.move(self.start_pos())
         self.apply_native()
+
+    def start_pos(self):
+        """Where to open: docked to the right (or left) edge of the primary screen,
+        keeping the height it was last left at; or exactly where it was (remember)."""
+        scr = QGuiApplication.primaryScreen().availableGeometry()
+        saved = None
+        if "x" in self.cfg and "y" in self.cfg:
+            saved = QPoint(int(self.cfg["x"]), int(self.cfg["y"]))
+        if POSITION == "remember" and saved is not None and any(
+                s.geometry().contains(saved) for s in QGuiApplication.screens()):
+            return saved
+        x = scr.left() + EDGE if POSITION == "left" else scr.right() + 1 - W - EDGE
+        y = scr.top() + 20
+        if saved is not None and scr.top() <= saved.y() <= scr.bottom() - 100:
+            y = saved.y()
+        return QPoint(x, y)
 
     def moveEvent(self, e):
         super().moveEvent(e)
@@ -839,7 +851,7 @@ class Monitor(QWidget):
 
 
 def main():
-    global SVC_LABEL, SVC_APP, SVC_URL, SVC_PROC, SVC_TITLE, DEMO
+    global SVC_LABEL, SVC_APP, SVC_URL, SVC_PROC, SVC_TITLE, DEMO, POSITION
     if sys.platform != "darwin":
         sys.exit("Mac Sysmon only runs on macOS. For Linux see kranmal/linux-sysmon.")
     ap = argparse.ArgumentParser(description="Transparent desktop system monitor (macOS).")
@@ -852,10 +864,14 @@ def main():
                     help="optional HTTP URL; 200 means RUNNING, otherwise LOADING")
     ap.add_argument("--service-process", default=SVC_PROC, metavar="NAME",
                     help="optional process name, to show its RAM use")
+    ap.add_argument("--position", default=POSITION, choices=["right", "left", "remember"],
+                    help="where to open: docked to the right (default) or left screen edge, "
+                         "or wherever it was last dragged to")
     ap.add_argument("--demo", action="store_true", help="show fake data (screenshots, testing)")
     args, qt_args = ap.parse_known_args()
     SVC_LABEL, SVC_APP, SVC_TITLE = args.service_label, args.service_app, args.service_title
     SVC_URL, SVC_PROC, DEMO = args.service_health_url, args.service_process, args.demo
+    POSITION = args.position
     app = QApplication([sys.argv[0]] + qt_args)
     app.setApplicationName("sysmon")
     try:   # no Dock icon, no app-switcher entry

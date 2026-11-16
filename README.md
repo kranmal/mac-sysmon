@@ -21,7 +21,7 @@ A lightweight, **transparent desktop system-monitor overlay for macOS** (Apple S
 
 Bars and numbers turn **yellow above 60 % and red above 85 %** (temperatures: yellow above 60 °C, red above 80 °C).
 
-Interaction: **drag** to move it (position is remembered), **right-click** for opacity presets, *Float on top*, click-through mode and quit. It sits just below normal windows, on every Space, with no Dock icon.
+Interaction: it **opens docked to the right edge of the screen**; **drag** to move it (it reopens on the right at the height you left it, or use `--position remember`), **right-click** for opacity presets, *Float on top*, click-through mode and quit. It sits just below normal windows, on every Space, with no Dock icon.
 
 ## Install and run
 
@@ -38,7 +38,8 @@ Stop it from the right-click menu, or `pkill -f mac-sysmon/sysmon.py`.
 
 ```
 sysmon.py [--service-app APP | --service-label LABEL] [--service-title TEXT]
-          [--service-health-url URL] [--service-process NAME] [--demo]
+          [--service-health-url URL] [--service-process NAME]
+          [--position right|left|remember] [--demo]
 ```
 
 | Option | Meaning |
@@ -48,6 +49,7 @@ sysmon.py [--service-app APP | --service-label LABEL] [--service-title TEXT]
 | `--service-title TEXT` | Section heading (default `SERVICE`) |
 | `--service-health-url URL` | If set, `RUNNING` means this URL returns HTTP 200; until then the state is `LOADING` |
 | `--service-process NAME` | Process name whose RAM use is shown next to the status |
+| `--position WHERE` | Where it opens: `right` (default) or `left` screen edge, keeping the height it was last at; `remember` reopens exactly where it was dragged to |
 | `--demo` | Fake data, for screenshots and testing |
 
 Each also exists as an environment variable (`SYSMON_SERVICE_LABEL`, `SYSMON_SERVICE_TITLE`, ...). For an app, the button runs `open -g -j -a APP` and stops it by terminating its processes. For a launchd agent it runs `launchctl kickstart` / `launchctl kill SIGTERM`; an agent with `KeepAlive` will be restarted by launchd after a stop.

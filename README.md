@@ -2,6 +2,10 @@
 
 A lightweight, **transparent desktop system-monitor overlay for macOS** (Apple Silicon). A port of [linux-sysmon](https://github.com/kranmal/linux-sysmon): same look, same single Python + Qt (PySide6) file, with the Linux `/sys` readers swapped for macOS sources. No sudo needed.
 
+<img src="docs/screenshot.png" alt="Mac Sysmon overlay showing demo data" width="348">
+
+*Rendered with `--demo` (fake data), including the optional service toggle.*
+
 ## Features
 
 | Section | Shows |

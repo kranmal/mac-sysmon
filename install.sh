@@ -47,6 +47,11 @@ $args
 </dict></plist>
 PLIST
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$AGENT"
+  # bootout is asynchronous: retry until the old instance has gone
+  for _ in 1 2 3 4 5; do
+    launchctl bootstrap "gui/$(id -u)" "$AGENT" 2>/dev/null && break
+    sleep 1
+  done
+  launchctl print "gui/$(id -u)/$LABEL" >/dev/null || { echo "Could not load $AGENT" >&2; exit 1; }
   echo "Autostart at login: $AGENT (started now)"
 fi

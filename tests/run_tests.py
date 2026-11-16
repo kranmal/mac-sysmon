@@ -59,6 +59,12 @@ check("service section adds height", w2.height() > h_off, f"{h_off} -> {w2.heigh
 check("service state shown", w2.svc_state == "running")
 w2.grab().save(f"{out}/on.png")
 
+# app mode: a toggle for an app that isn't running reads as off and takes a click
+m.SVC_LABEL, m.SVC_APP = "", "NoSuchAppForSysmonTest"
+w4 = m.Monitor()
+check("app toggle enabled", w4.svc_enabled and w4.app_procs() == [])
+m.SVC_APP = ""
+
 # real sensors on this machine: must not raise
 m.DEMO, m.SVC_LABEL = False, ""
 w3 = m.Monitor()

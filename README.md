@@ -7,7 +7,7 @@ A lightweight, **transparent desktop system-monitor overlay for macOS** (Apple S
 | Section | Shows |
 |---------|-------|
 | **Clock** | time and date |
-| **Service toggle** *(optional)* | status of a launchd **user agent**, its RAM use, and a **START/STOP** button |
+| **Service toggle** *(optional)* | status of an **app** (e.g. Ollama) or a launchd **user agent**, its RAM use, and a **START/STOP** button |
 | **CPU** | total usage + 60 s graph, hottest die temperature, load average, one bar per core split into efficiency and performance clusters |
 | **RAM** | used / total, swap, bar |
 | **GPU** | usage + graph, memory in use (unified memory, so shared with RAM) |
@@ -33,19 +33,27 @@ Stop it from the right-click menu, or `pkill -f mac-sysmon/sysmon.py`.
 ## Options
 
 ```
-sysmon.py [--service-label LABEL] [--service-title TEXT]
+sysmon.py [--service-app APP | --service-label LABEL] [--service-title TEXT]
           [--service-health-url URL] [--service-process NAME] [--demo]
 ```
 
 | Option | Meaning |
 |--------|---------|
+| `--service-app APP` | Show a toggle for this macOS app: START opens it hidden in the background, STOP quits it and its same-named helper processes |
 | `--service-label LABEL` | Show a toggle for this launchd user agent (`gui/<uid>/LABEL`). Omit to hide the section |
 | `--service-title TEXT` | Section heading (default `SERVICE`) |
 | `--service-health-url URL` | If set, `RUNNING` means this URL returns HTTP 200; until then the state is `LOADING` |
 | `--service-process NAME` | Process name whose RAM use is shown next to the status |
 | `--demo` | Fake data, for screenshots and testing |
 
-Each also exists as an environment variable (`SYSMON_SERVICE_LABEL`, `SYSMON_SERVICE_TITLE`, ...). The button runs `launchctl kickstart` / `launchctl kill SIGTERM`; an agent with `KeepAlive` will be restarted by launchd after a stop.
+Each also exists as an environment variable (`SYSMON_SERVICE_LABEL`, `SYSMON_SERVICE_TITLE`, ...). For an app, the button runs `open -g -j -a APP` and stops it by terminating its processes. For a launchd agent it runs `launchctl kickstart` / `launchctl kill SIGTERM`; an agent with `KeepAlive` will be restarted by launchd after a stop.
+
+Example, an on/off button for a local LLM served by Ollama:
+
+```bash
+./install.sh --autostart --service-app Ollama --service-title "LOCAL LLM" \
+    --service-health-url http://127.0.0.1:11434/api/version
+```
 
 ## Where each metric comes from
 

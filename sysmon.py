@@ -285,6 +285,17 @@ class Monitor(QWidget):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self.save_cfg)
+        # a display was plugged/unplugged or changed resolution: re-dock (debounced)
+        self._dock_timer = QTimer(self)
+        self._dock_timer.setSingleShot(True)
+        self._dock_timer.timeout.connect(self.redock)
+        if not self.demo:
+            g = QGuiApplication.instance()
+            for sig in (g.screenAdded, g.screenRemoved, g.primaryScreenChanged):
+                sig.connect(self._screens_changed)
+            for scr in g.screens():
+                self._watch_screen(scr)
+            g.screenAdded.connect(self._watch_screen)
         t = QTimer(self)
         t.timeout.connect(self.sample)
         t.start(1000)
@@ -332,6 +343,26 @@ class Monitor(QWidget):
         if saved is not None and scr.top() <= saved.y() <= scr.bottom() - 100:
             y = saved.y()
         return QPoint(x, y)
+
+    def _watch_screen(self, scr):
+        scr.geometryChanged.connect(self._screens_changed)
+        scr.availableGeometryChanged.connect(self._screens_changed)
+
+    def _screens_changed(self, *_):
+        self._dock_timer.start(700)
+
+    def redock(self):
+        """Re-dock after a display change. Docked modes snap back to the edge, keeping
+        the current height if it still fits; "remember" only rescues an off-screen window."""
+        if not getattr(self, "_placed", False):
+            return
+        cur = QPoint(self.x(), self.y())
+        if POSITION == "remember":
+            if not any(s.geometry().contains(cur) for s in QGuiApplication.screens()):
+                self.move(self.start_pos())
+            return
+        self.cfg.update(x=cur.x(), y=cur.y())
+        self.move(self.start_pos())
 
     def moveEvent(self, e):
         super().moveEvent(e)

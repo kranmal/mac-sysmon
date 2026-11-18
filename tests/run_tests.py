@@ -61,6 +61,21 @@ m.POSITION = "remember"
 check("remembers position", (w.start_pos().x(), w.start_pos().y()) == (scr.left() + 50, scr.top() + 120))
 m.POSITION, w.cfg = "right", {}
 
+# display change: redock() snaps a stranded window back to the edge, keeps its height
+w._placed = True
+w.move(scr.left() + 40, scr.top() + 200)
+w.redock()
+check("redock to right edge", (w.x(), w.y()) == (scr.right() + 1 - m.W - m.EDGE, scr.top() + 200),
+      f"{w.x()},{w.y()}")
+m.POSITION = "remember"
+w.move(scr.left() + 40, scr.top() + 200)
+w.redock()
+check("remember mode leaves an on-screen window alone", (w.x(), w.y()) == (scr.left() + 40, scr.top() + 200))
+w.move(scr.right() + 5000, 0)
+w.redock()
+check("remember mode rescues an off-screen window", scr.left() <= w.x() <= scr.right())
+m.POSITION, w.cfg = "right", {}
+
 # demo mode, service section on
 m.SVC_LABEL, m.SVC_TITLE = "com.example.demo", "LOCAL LLM"
 w2 = m.Monitor()

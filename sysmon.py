@@ -43,6 +43,9 @@ POSITION = os.environ.get("SYSMON_POSITION", "right")   # right | left | remembe
 EDGE = 10        # gap to the screen edge when docked
 DEMO = False     # --demo: fake data (for screenshots and tests)
 CONFIG = os.path.expanduser("~/Library/Application Support/mac-sysmon/config.json")
+SSID_FILE = os.path.expanduser("~/Library/Application Support/mac-sysmon/ssid.json")
+WIFI_HELPER = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".build", "SysmonWiFi.app")
+BANDS = {1: "2.4GHz", 2: "5GHz", 3: "6GHz"}   # CWChannelBand
 
 LEVEL_BELOW, LEVEL_TOP = -1, 3   # NSWindow levels: just under normal windows / floating
 THERMAL = ("Nominal", "Fair", "Serious", "Critical")
@@ -285,6 +288,8 @@ class Monitor(QWidget):
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.timeout.connect(self.save_cfg)
+        if not self.demo:
+            self.start_wifi_helper()
         # a display was plugged/unplugged or changed resolution: re-dock (debounced)
         self._dock_timer = QTimer(self)
         self._dock_timer.setSingleShot(True)
@@ -300,6 +305,36 @@ class Monitor(QWidget):
         t.timeout.connect(self.sample)
         t.start(1000)
         self.sample()
+
+    # ---- Wi-Fi name ----
+    # macOS hides the SSID from processes without Location Services permission. A small
+    # signed helper app (helper/build.sh) holds that permission and writes the name to a file.
+    def start_wifi_helper(self):
+        if QGuiApplication.platformName() != "cocoa" or not os.path.isdir(WIFI_HELPER):
+            return
+        if not any(p.info["name"] == "SysmonWiFi" for p in psutil.process_iter(["name"])):
+            subprocess.Popen(["open", "-g", "-j", "-a", WIFI_HELPER],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        QApplication.instance().aboutToQuit.connect(self.stop_wifi_helper)
+
+    @staticmethod
+    def stop_wifi_helper():
+        for p in psutil.process_iter(["name"]):
+            if p.info["name"] == "SysmonWiFi":
+                try:
+                    p.terminate()
+                except psutil.Error:
+                    pass
+
+    @staticmethod
+    def helper_ssid():
+        try:
+            d = json.load(open(SSID_FILE))
+            if time.time() - float(d.get("ts", 0)) < 20 and d.get("ssid"):
+                return str(d["ssid"])
+        except (OSError, ValueError):
+            pass
+        return None
 
     # ---- window placement (macOS) ----
     def nswindow(self):
@@ -454,7 +489,7 @@ class Monitor(QWidget):
                  batt={"pct": 74, "charging": False, "plugged": False, "watts": -9.4,
                        "mins": 312, "cycles": 38},
                  ssd_t=38, batt_t=29, thermal=0,
-                 wifi={"ssid": "HomeWiFi", "sig": 72, "rate": 432, "ip": "192.168.1.20"},
+                 wifi={"ssid": "HomeWiFi", "band": "5GHz", "sig": 72, "rate": 432, "ip": "192.168.1.20"},
                  down=2.4e6 * (1 + math.sin(t)), up=3e5 * (1 + math.cos(t)))
         self.wifi_if = self.wifi_if or "en0"
         self.rates = {self.wifi_if: (s["down"], s["up"])}
@@ -500,8 +535,10 @@ class Monitor(QWidget):
             ip = self.ipv4(self.wifi_if)
             if not rssi or not ip:
                 return
-            ssid = w.ssid()   # None unless the app has Location Services permission
-            self.s["wifi"] = {"ssid": str(ssid) if ssid else None,
+            ssid = w.ssid() or self.helper_ssid()   # own read needs Location Services permission
+            ch = w.wlanChannel()
+            band = BANDS.get(int(ch.channelBand())) if ch else None
+            self.s["wifi"] = {"ssid": str(ssid) if ssid else None, "band": band,
                               "sig": float(min(max(2 * (rssi + 100), 0), 100)),
                               "rate": float(w.transmitRate() or 0), "ip": ip}
         except Exception:
@@ -779,8 +816,8 @@ class Monitor(QWidget):
         wf = s.get("wifi")
         if wf:
             wc = self.color(100 - wf["sig"])
-            name = wf["ssid"][:16] if wf["ssid"] else (self.wifi_if or "")
-            self.text(p, 14, y, f"WiFi {name}", wc, bold=True)
+            name = wf["ssid"][:12] if wf["ssid"] else (self.wifi_if or "")
+            self.text(p, 14, y, f"WiFi {name} {wf.get('band') or ''}".rstrip(), wc, bold=True)
             rate = f"{wf['rate']:.0f}Mb/s  " if wf["rate"] else ""
             self.rtext(p, y, f"{rate}{wf['sig']:.0f}%", wc)
             y += 20

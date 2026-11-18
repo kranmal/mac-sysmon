@@ -24,6 +24,8 @@ if [[ ! -x "$here/.venv/bin/python" ]]; then
   if command -v uv >/dev/null; then uv venv -q --python 3.13 "$here/.venv"
   else python3 -m venv "$here/.venv"; fi
 fi
+# optional: helper app that lets the monitor show the Wi-Fi name (needs Xcode command line tools)
+if command -v swiftc >/dev/null; then "$here/helper/build.sh" || echo "(Wi-Fi name helper not built)"; fi
 if command -v uv >/dev/null; then uv pip install -q --python "$here/.venv/bin/python" -r "$here/requirements.txt"
 else "$here/.venv/bin/python" -m pip install -q -r "$here/requirements.txt"; fi
 echo "Ready. Run it with: $here/run.sh"

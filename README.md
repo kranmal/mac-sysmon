@@ -17,7 +17,7 @@ A lightweight, **transparent desktop system-monitor overlay for macOS** (Apple S
 | **GPU** | usage + graph, memory in use (unified memory, so shared with RAM) |
 | **Power** *(laptops)* | battery %, charging state, watts in/out, time remaining |
 | **Temps / Storage** | SSD and battery temperature, macOS thermal state; every physical disk with capacity and, per volume, % used, free and total. External drives appear automatically; mounted disk images are ignored |
-| **Network** | Wi-Fi signal % and link rate, IP and rates per active interface, wired Ethernet when connected, combined download/upload with graph |
+| **Network** | Wi-Fi name, band (2.4 / 5 / 6 GHz), signal % and link rate, IP and rates per active interface, wired Ethernet when connected, combined download/upload with graph |
 
 Bars and numbers turn **yellow above 60 % and red above 85 %** (temperatures: yellow above 60 °C, red above 80 °C).
 
@@ -72,11 +72,11 @@ Example, an on/off button for a local LLM served by Ollama:
 | Battery | `ioreg -n AppleSmartBattery` |
 | Thermal state | `NSProcessInfo.thermalState` |
 | Disks | `diskutil info -plist` + `statvfs` (the Data volume is measured for "Macintosh HD") |
-| Wi-Fi | CoreWLAN |
+| Wi-Fi | CoreWLAN (band, signal, rate); the name comes from a small helper app, see below |
 
 ## Known limitations
 
-- **Wi-Fi name is hidden.** macOS only reveals the SSID to apps with Location Services permission, so the interface name (`en0`) is shown instead. Signal and link rate work.
+- **Wi-Fi name needs Location permission.** macOS only reveals the network name to apps with Location Services access, which a plain Python script cannot hold. `./install.sh` builds a tiny helper app (`helper/wifi-ssid.swift`, needs the Xcode command line tools) that holds that permission and passes the name to the monitor through a file. The first launch shows a one-time macOS Location prompt for "Mac Sysmon Wi-Fi"; the helper never reads or stores your location. Without the helper, or if you decline, the interface name (`en0`) is shown instead. Band, signal and link rate work either way.
 - Tested on one machine: MacBook Air M4, macOS 27. Intel Macs have no IOHID temperature sensors or E/P split; those parts show `-` or are simplified.
 - No fan speed or per-rail power (needs SMC access / `powermetrics` with sudo).
 - Settings live in `~/Library/Application Support/mac-sysmon/config.json`.

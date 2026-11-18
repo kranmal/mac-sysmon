@@ -21,7 +21,7 @@ A lightweight, **transparent desktop system-monitor overlay for macOS** (Apple S
 
 Bars and numbers turn **yellow above 60 % and red above 85 %** (temperatures: yellow above 60 °C, red above 80 °C).
 
-Interaction: it **opens docked to the right edge of the screen**; **drag** to move it (it reopens on the right at the height you left it, or use `--position remember`), **right-click** for opacity presets, *Float on top*, click-through mode and quit. It sits just below normal windows, on every Space, with no Dock icon.
+Interaction: it **opens docked to the right edge of the screen** and re-docks when a display is plugged in, removed or changes resolution; **drag** to move it (it reopens on the right at the height you left it, or use `--position remember`), **right-click** for opacity presets, *Float on top*, click-through mode and quit. It sits just below normal windows, on every Space, with no Dock icon.
 
 ## Install and run
 
